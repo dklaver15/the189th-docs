@@ -2,7 +2,7 @@
 
 Internal technical documentation for the 189th clan: ClanGuard Bot, custom Battlefield 6 Portal game modes, and supporting tooling.
 
-Published at: <https://dklaver15.github.io/the189th-docs/>
+Published at: <https://189docs.fortiscode.dev/>
 
 ## Local development
 
