@@ -1,0 +1,139 @@
+site_name: 189th Technical Docs
+site_description: Internal technical documentation for the 189th clan — bot, game modes, and tooling.
+site_author: 189th
+# IMPORTANT: change this if you rename the repo or use a custom domain.
+# For a project page: https://<user>.github.io/<repo>/
+site_url: https://dklaver15.github.io/the189th-docs/
+
+repo_name: dklaver15/the189th-docs
+repo_url: https://github.com/dklaver15/the189th-docs
+edit_uri: edit/main/docs/
+
+theme:
+  name: material
+  language: en
+  palette:
+    - media: "(prefers-color-scheme: light)"
+      scheme: default
+      primary: black
+      accent: amber
+      toggle:
+        icon: material/weather-sunny
+        name: Switch to dark mode
+    - media: "(prefers-color-scheme: dark)"
+      scheme: slate
+      primary: black
+      accent: amber
+      toggle:
+        icon: material/weather-night
+        name: Switch to light mode
+  features:
+    - navigation.instant
+    - navigation.tracking
+    - navigation.tabs
+    - navigation.tabs.sticky
+    - navigation.sections
+    - navigation.expand
+    - navigation.indexes
+    - navigation.top
+    - toc.follow
+    - search.suggest
+    - search.highlight
+    - search.share
+    - content.code.copy
+    - content.code.annotate
+    - content.tabs.link
+    - content.action.edit
+  icon:
+    repo: fontawesome/brands/github
+  font:
+    text: Inter
+    code: JetBrains Mono
+
+extra_css:
+  - assets/stylesheets/extra.css
+
+markdown_extensions:
+  - admonition
+  - attr_list
+  - def_list
+  - footnotes
+  - md_in_html
+  - tables
+  - toc:
+      permalink: true
+      toc_depth: 3
+  - pymdownx.details
+  - pymdownx.superfences:
+      custom_fences:
+        - name: mermaid
+          class: mermaid
+          format: !!python/name:pymdownx.superfences.fence_code_format
+  - pymdownx.tabbed:
+      alternate_style: true
+  - pymdownx.tasklist:
+      custom_checkbox: true
+  - pymdownx.highlight:
+      anchor_linenums: true
+      line_spans: __span
+      pygments_lang_class: true
+  - pymdownx.inlinehilite
+  - pymdownx.snippets
+  - pymdownx.keys
+  - pymdownx.mark
+  - pymdownx.tilde
+  - pymdownx.caret
+  - pymdownx.emoji:
+      emoji_index: !!python/name:material.extensions.emoji.twemoji
+      emoji_generator: !!python/name:material.extensions.emoji.to_svg
+
+plugins:
+  - search
+
+nav:
+  - Home: index.md
+  - ClanGuard Bot:
+      - clanguard-bot/index.md
+      - Architecture: clanguard-bot/architecture.md
+      - Deployment & Infra: clanguard-bot/deployment.md
+      - Runbook: clanguard-bot/runbook.md
+      - Configuration Reference: clanguard-bot/configuration.md
+      - Slash Commands: clanguard-bot/commands.md
+      - Database Schema: clanguard-bot/database.md
+      - Subsystems:
+          - AWOL System: clanguard-bot/awol-system.md
+          - Auto-Promotion: clanguard-bot/auto-promotion.md
+          - Apollo Integration: clanguard-bot/apollo-integration.md
+          - Event Attendance: clanguard-bot/event-attendance.md
+          - Google Sheets & Calendar: clanguard-bot/google-integration.md
+          - Patrol Watch: clanguard-bot/patrol-watch.md
+          - Reddit Leads: clanguard-bot/reddit-leads.md
+          - Weekly Briefing: clanguard-bot/weekly-briefing.md
+          - Reminders & Bumps: clanguard-bot/reminders.md
+          - Invites & Attribution: clanguard-bot/invite-tracking.md
+  - Portal Modes:
+      - portal-modes/index.md
+      - Vendetta:
+          - portal-modes/vendetta/index.md
+          - Design & State Machine: portal-modes/vendetta/design.md
+          - HVT System: portal-modes/vendetta/hvt-system.md
+          - Scoreboard: portal-modes/vendetta/scoreboard.md
+          - Changelog: portal-modes/vendetta/changelog.md
+      - CTF:
+          - portal-modes/ctf/index.md
+          - Design: portal-modes/ctf/design.md
+          - Team Switch Stations: portal-modes/ctf/team-switch.md
+  - Portal Scripting:
+      - portal-scripting/index.md
+      - Gotchas: portal-scripting/gotchas.md
+      - API Quirks: portal-scripting/api-quirks.md
+      - Godot Workflow: portal-scripting/godot-workflow.md
+      - Build & Deploy: portal-scripting/build-deploy.md
+
+extra:
+  social:
+    - icon: fontawesome/brands/github
+      link: https://github.com/dklaver15
+    - icon: fontawesome/brands/discord
+      link: https://discord.gg/
+  generator: false
