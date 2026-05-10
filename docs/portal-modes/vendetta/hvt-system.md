@@ -1,89 +1,110 @@
 # HVT System
 
-Three subsystems make the HVT viable as a target *and* fair to play:
+Three subsystems make HVT play viable as a target *and* fair to play:
 
-1. **Selection** — who becomes HVT each round
-2. **HP buff** — extra survivability so they're not deleted in 0.4s
-3. **Ping system** — visual indicator everyone can see, on a refresh interval
+1. **Promotion** — how a squad's slot fills
+2. **+25 HP buff** — extra survivability so HVTs aren't deleted in 0.4 seconds
+3. **WorldIcon ping** — permanent head-height marker visible to everyone
 
-## Selection
+## Promotion phases
 
-See [Design & State Machine § HVT selection](design.md#hvt-selection).
+The active-HVT count vs. the locked slot count determines which promotion rule is in play.
 
-## HP buff
+### Bootstrap phase (`activeHvts < hvtSlots`)
 
-The HVT spawns (or is converted in-place) with elevated maximum health. The buff is applied on round start and stripped on round end — even if the HVT survives, the next round resets everyone to standard HP before re-applying to whoever is selected.
+The system is "looking to fill slots." Any cross-squad kill by a player whose squad has no current HVT promotes that killer to fill their squad's slot.
 
-```ts
-// Sketch of the buff apply pattern
-function applyHvtBuff(hvtPlayer: Player) {
-    hvtPlayer.MaxHealth = HVT_MAX_HP;     // TODO: confirm exact API
-    hvtPlayer.CurrentHealth = HVT_MAX_HP;
-}
+- Squad A's player kills Squad B's player → if Squad A has no HVT, Squad A's killer becomes HVT.
+- If Squad A already has an HVT, nothing changes.
+- Friendly fire kills do not promote (they're treated as a non-kill HVT-loss if the victim was the squad's HVT).
 
-function clearHvtBuff(hvtPlayer: Player) {
-    hvtPlayer.MaxHealth = STANDARD_MAX_HP;
-}
+Toast on promotion: *"PlayerName claims an HVT slot"*.
+
+### Locked phase (`activeHvts == hvtSlots`)
+
+All slots are filled. The only way for the slot machine to transition is an HVT death.
+
+- **HVT killed by non-HVT (cross-squad)** → victim's slot clears (Vacant). Killer is *not* promoted automatically; the system drops back into Bootstrap, and the next bootstrap kill fills the slot.
+- **HVT killed by HVT (cross-squad)** → victim's slot clears, killer keeps their existing HVT status. No transfer — the HVT count drops by one and the system re-enters Bootstrap.
+- **HVT dies to non-kill cause** (fall damage, suicide, friendly fire, disconnect) → slot clears immediately, no killer recorded.
+
+Toast on HVT-kill promotion: *"PlayerName took the HVT slot by elimination"*.
+
+## Recovery bonus
+
+When a squad loses its HVT and then snaps back to fill the slot via a direct chain kill, the promoting kill grants a +1 recovery bonus on top of the standard kill / HVT-kill score. This rewards squads for not leaving open slots for the rest of the match.
+
+Toast on recovery: *"PlayerName recovered the HVT! Bonus point"*.
+
+## +25 HP buff
+
+The HVT's max health goes from the default 100 to 125 via `mod.SetPlayerMaxHealth(player, 125)`. Applied on promotion, removed on demotion / death.
+
+```typescript
+// Apply on promotion
+mod.SetPlayerMaxHealth(promotedPlayer, 125);
+// Heal them up to the new max so the bonus is immediate
+mod.SetPlayerCurrentHealth(promotedPlayer, 125);
+
+// Remove on slot clear
+mod.SetPlayerMaxHealth(formerHvt, 100);
 ```
 
-!!! note "Buff value tuning"
-    The exact multiplier has been tuned across versions. Check the `[changelog](changelog.md)` for current value. Too high and the HVT becomes a sponge that survives every round; too low and HVT gets melted instantly.
+The buff is small enough that good play still wins fights — an HVT eats roughly one extra body shot before going down. Larger buffs (50+) made HVTs feel like sponges in early playtests; +25 is the tested sweet spot.
 
-## Ping system
+!!! warning "Heal-up at promotion"
+    If you only set max HP without setting current HP, the player walks around with 100/125 — the extra ceiling exists but they're effectively at 80% health. Always heal-up immediately after the max change. Same on demotion: dropping max to 100 doesn't lower current HP if the player was already below 100.
 
-Every player can see a marker over the HVT's position. The marker is a `WorldIcon` whose owner is the HVT player; it refreshes every N seconds (the **ping interval**) while the HVT is alive.
+## WorldIcon ping
+
+Every player on the server can see a marker over each live HVT's head. The marker is a `WorldIcon` (Alert image, head-height) parented to the HVT player. It is **always visible** while the HVT is alive — there is no on/off interval.
+
+The icon's position is refreshed via the `HvtIconUpdateLoop` async iterator at roughly 4 Hz (every ~0.25 seconds), which is fast enough that the marker tracks the HVT's movement smoothly.
 
 ```mermaid
 sequenceDiagram
-    participant Round as Round logic
-    participant Ping as Ping system
+    participant Slot as Slot system
+    participant WIM as WorldIconManager
+    participant Loop as HvtIconUpdateLoop
     participant Icon as WorldIcon
 
-    Round->>Ping: HVT selected, arm pings
-    Ping->>Icon: SetWorldIconOwner(hvt)
-    Ping->>Icon: SetWorldIconPosition(...)
-    Ping->>Icon: Show
-    loop every PING_INTERVAL
-        Ping->>Icon: SetWorldIconPosition(hvt.Position)
+    Slot->>WIM: HVT promoted, request icon
+    WIM->>Icon: SetWorldIconOwner(hvtPlayer)
+    WIM->>Icon: SetWorldIconImage(Alert)
+    WIM->>Icon: Show
+    loop every ~0.25s
+        Loop->>Icon: SetWorldIconPosition(headHeight(hvt.Position))
     end
-    Round->>Ping: HVT killed / round ended
-    Ping->>Icon: Hide / disown
+    Slot->>WIM: HVT lost, release icon
+    WIM->>Icon: Hide / disown
 ```
 
-### API ordering landmine
+The `WorldIconManager` class was lifted from CTF v4.5.11 — same pattern, just owning Alert icons instead of flag icons.
 
-!!! danger "SetWorldIconOwner must be called BEFORE other WorldIcon setters"
-    The Portal runtime requires `SetWorldIconOwner` to be the first call after creating or repurposing a `WorldIcon`. Calling `SetWorldIconPosition` or any of the other setters first results in the icon attaching to the wrong owner — or worse, no owner at all and the icon orphans.
+### `SetWorldIconOwner` ordering
 
-    The pattern is:
+!!! danger "Owner before everything else"
+    `SetWorldIconOwner` must be the first call after creating or repurposing a `WorldIcon`. Calling position / image / color setters first results in the icon attaching incorrectly. See [Portal Scripting Gotchas](../../portal-scripting/gotchas.md#setworldiconowner-must-come-first).
 
-    ```ts
-    SetWorldIconOwner(icon, hvtPlayer);   // FIRST
-    SetWorldIconPosition(icon, hvtPlayer.Position);
-    SetWorldIconText(icon, "HVT");
-    SetWorldIconColor(icon, RED);
-    ```
+## Per-player stats
 
-    Reordering these is a foot-gun that has bitten this codebase. See [Portal Scripting Gotchas](../../portal-scripting/gotchas.md#setworldiconowner-must-come-first).
+Tracked separately from squad scoring (Phase 3, v0.3.0):
 
-## Ping interval
+| Stat | Increments when… |
+|---|---|
+| `score` | Per-player accumulator: `+1 per kill, +5 per HVT kill, +1 per 5s while you're an HVT` |
+| `hvtKills` | You killed an enemy HVT |
+| `kills` | You killed any enemy (including HVTs — these double-count, intentionally) |
+| `hvtTime` | Seconds you've personally held HVT status (sum of intervals) |
 
-The ping refresh is a tradeoff:
+These appear on the [scoreboard](scoreboard.md). Squad scoring is a separate concept; per-player stats exist purely for individual recognition and tiebreaking.
 
-- **Short interval (e.g. 1s)** — HVT is constantly visible. No-skill: just shoot the marker.
-- **Long interval (e.g. 10s)** — HVT can break line-of-sight and disappear briefly. More tactical, but feels unfair to attackers if the marker goes stale.
+## Disconnect handling
 
-Current value: _TODO — fill in._
+If an HVT disconnects mid-match, the slot clears immediately as a non-kill cause. Bootstrap resumes for that squad. Toast: *"Squad N HVT disconnected"* (debug-only, not shown to non-officers).
 
-## What happens on HVT death
+## Friendly fire
 
-1. Kill event detected; victim is the HVT.
-2. Award bonus score to killer.
-3. Hide the `WorldIcon` immediately (don't wait for round-end transition — the marker hovering over a corpse looks silly).
-4. Transition state machine to `RoundEnd`.
+If an HVT is killed by a squadmate, the slot clears and the system treats it as a non-kill loss — no promotion to the friendly-fire shooter, no HVT-kill bonus. Toast: *"An HVT was lost to friendly fire"*.
 
-## What happens if HVT disconnects mid-round
-
-1. State machine transitions to `RoundEnd` immediately.
-2. No score awarded (no kill).
-3. Next round picks a new HVT normally.
+This prevents griefing-via-FF as a way to harvest HVT-kill points within your own squad.
