@@ -3,7 +3,7 @@ site_description: Internal technical documentation for the 189th clan — bot, g
 site_author: 189th
 # IMPORTANT: change this if you rename the repo or use a custom domain.
 # For a project page: https://<user>.github.io/<repo>/
-site_url: https://dklaver15.github.io/the189th-docs/
+site_url: https://189docs.fortiscode.dev/
 
 repo_name: dklaver15/the189th-docs
 repo_url: https://github.com/dklaver15/the189th-docs
